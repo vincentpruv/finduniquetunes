@@ -5,6 +5,7 @@ import TwitterButton from "../components/TwitterButton";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import { useTheme } from "../context/ThemeContext";
+import { Analytics } from "@vercel/analytics/react";
 
 const Index = () => {
   const { theme } = useTheme();
@@ -13,6 +14,8 @@ const Index = () => {
     <div className={`min-h-screen w-full flex flex-col justify-center items-center px-6 transition-colors duration-300 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
       <BackgroundAnimation />
       <ThemeToggle />
+
+      <Analytics />
       
       <div className="relative z-10 max-w-md w-full mx-auto text-center">
         <Logo />
