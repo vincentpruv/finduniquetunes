@@ -31,7 +31,7 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
     if (Array.isArray(value)) {
       setTags(value);
     } else if (typeof value === 'string' && value) {
-      setTags(value.split(',').map(tag => tag.trim()).filter(Boolean));
+      setTags(value.split(',').map((tag: string) => tag.trim()).filter(Boolean));
     } else {
       setTags([]);
     }
@@ -65,7 +65,7 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
   };
 
   const removeTag = (tagToRemove: string) => {
-    const newTags = tags.filter(tag => tag !== tagToRemove);
+    const newTags = tags.filter((tag: string) => tag !== tagToRemove);
     setTags(newTags);
     onTagsChange(newTags);
     onChange(newTags.join(', '));
@@ -74,7 +74,7 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
   return (
     <div className="relative">
       <div className="flex flex-wrap gap-2 rounded-md border bg-background p-2">
-        {tags.map((tag) => (
+        {tags.map((tag: string) => (
           <span
             key={tag}
             className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-sm animate-in fade-in-0 zoom-in-95"
@@ -101,11 +101,11 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
       {inputValue && (
         <div className="absolute left-0 right-0 mt-1 rounded-md border bg-background p-2 shadow-lg">
           {existingTags
-            .filter(tag => 
+            .filter((tag: string) => 
               tag.toLowerCase().includes(inputValue.toLowerCase()) && 
               !tags.includes(tag)
             )
-            .map(tag => (
+            .map((tag: string) => (
               <button
                 key={tag}
                 className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
@@ -179,9 +179,9 @@ export default function AdminPage() {
       }
 
       const allTags = new Set<string>();
-      const sortedData = (data || []).map(video => {
+      const sortedData = (data || []).map((video: Video) => {
         if (Array.isArray(video.tags)) {
-          video.tags.forEach(tag => allTags.add(tag));
+          video.tags.forEach((tag: string) => allTags.add(tag));
           return {
             ...video,
             tags: video.tags.sort((a: string, b: string) => a.localeCompare(b))
@@ -229,7 +229,7 @@ export default function AdminPage() {
       }
 
       const tagsArray = typeof trimmedVideo.tags === 'string' 
-        ? trimmedVideo.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+        ? trimmedVideo.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
         : [];
 
       const sortedTags = tagsArray.sort((a: string, b: string) => a.localeCompare(b));
@@ -278,7 +278,7 @@ export default function AdminPage() {
       const tagsArray = Array.isArray(trimmedVideo.tags)
         ? trimmedVideo.tags
         : typeof trimmedVideo.tags === 'string'
-          ? trimmedVideo.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+          ? trimmedVideo.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
           : [];
 
       const sortedTags = tagsArray.sort((a: string, b: string) => a.localeCompare(b));
@@ -527,7 +527,7 @@ export default function AdminPage() {
                   </p>
                   {video.tags && video.tags.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {video.tags.map((tag, index) => (
+                      {video.tags.map((tag: string, index: number) => (
                         <span
                           key={index}
                           className="rounded-full bg-secondary px-2 py-1 text-xs"
