@@ -48,7 +48,7 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
       e.preventDefault();
       const newTag = inputValue.trim();
       if (newTag && !tags.includes(newTag)) {
-        const newTags = [...tags, newTag].sort((a, b) => a.localeCompare(b));
+        const newTags = [...tags, newTag].sort((a: string, b: string) => a.localeCompare(b));
         setTags(newTags);
         onTagsChange(newTags);
         onChange(newTags.join(', '));
@@ -110,7 +110,7 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
                 key={tag}
                 className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
                 onClick={() => {
-                  const newTags = [...tags, tag].sort((a, b) => a.localeCompare(b));
+                  const newTags = [...tags, tag].sort((a: string, b: string) => a.localeCompare(b));
                   setTags(newTags);
                   onTagsChange(newTags);
                   onChange(newTags.join(', '));
@@ -184,11 +184,11 @@ export default function AdminPage() {
         video.tags?.forEach((tag: string) => allTags.add(tag));
         return {
           ...video,
-          tags: video.tags?.sort((a, b) => a.localeCompare(b)) || []
+          tags: video.tags?.sort((a: string, b: string) => a.localeCompare(b)) || []
         };
       }) || [];
 
-      setExistingTags(Array.from(allTags).sort((a, b) => a.localeCompare(b)));
+      setExistingTags(Array.from(allTags).sort((a: string, b: string) => a.localeCompare(b)));
       setVideos(sortedData);
     } catch (error: any) {
       console.error('Error fetching videos:', error);
@@ -232,7 +232,7 @@ export default function AdminPage() {
             .split(',')
             .map(tag => tag.trim())
             .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b))
+            .sort((a: string, b: string) => a.localeCompare(b))
         : [];
 
       const { error } = await supabase.from('videos').insert([{
@@ -278,12 +278,12 @@ export default function AdminPage() {
 
       // Sort tags alphabetically before updating
       const sortedTags = Array.isArray(trimmedVideo.tags)
-        ? trimmedVideo.tags.sort((a, b) => a.localeCompare(b))
+        ? trimmedVideo.tags.sort((a: string, b: string) => a.localeCompare(b))
         : trimmedVideo.tags
             .split(',')
             .map(tag => tag.trim())
             .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b));
+            .sort((a: string, b: string) => a.localeCompare(b));
 
       const { error } = await supabase
         .from('videos')
