@@ -28,18 +28,18 @@ function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: 
   const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
-    // Initialize tags from value
     if (Array.isArray(value)) {
       setTags(value);
-    } else if (typeof value === 'string') {
+    } else if (typeof value === 'string' && value) {
       setTags(value.split(',').map(tag => tag.trim()).filter(Boolean));
+    } else {
+      setTags([]);
     }
     setInputValue('');
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
-      // Remove the last tag when backspace is pressed on empty input
       const newTags = tags.slice(0, -1);
       setTags(newTags);
       onTagsChange(newTags);
@@ -178,15 +178,17 @@ export default function AdminPage() {
         throw error;
       }
 
-      // Sort tags alphabetically for each video and collect unique tags
       const allTags = new Set<string>();
-      const sortedData = data?.map(video => {
-        video.tags?.forEach((tag: string) => allTags.add(tag));
-        return {
-          ...video,
-          tags: video.tags?.sort((a: string, b: string) => a.localeCompare(b)) || []
-        };
-      }) || [];
+      const sortedData = (data || []).map(video => {
+        if (Array.isArray(video.tags)) {
+          video.tags.forEach(tag => allTags.add(tag));
+          return {
+            ...video,
+            tags: video.tags.sort((a: string, b: string) => a.localeCompare(b))
+          };
+        }
+        return video;
+      });
 
       setExistingTags(Array.from(allTags).sort((a: string, b: string) => a.localeCompare(b)));
       setVideos(sortedData);
@@ -226,14 +228,11 @@ export default function AdminPage() {
         throw new Error('Please fill in all required fields');
       }
 
-      // Sort tags alphabetically before saving
-      const sortedTags = trimmedVideo.tags
-        ? trimmedVideo.tags
-            .split(',')
-            .map(tag => tag.trim())
-            .filter(Boolean)
-            .sort((a: string, b: string) => a.localeCompare(b))
+      const tagsArray = typeof trimmedVideo.tags === 'string' 
+        ? trimmedVideo.tags.split(',').map(tag => tag.trim()).filter(Boolean)
         : [];
+
+      const sortedTags = tagsArray.sort((a: string, b: string) => a.localeCompare(b));
 
       const { error } = await supabase.from('videos').insert([{
         ...trimmedVideo,
@@ -276,14 +275,13 @@ export default function AdminPage() {
         throw new Error('Please fill in all required fields');
       }
 
-      // Sort tags alphabetically before updating
-      const sortedTags = Array.isArray(trimmedVideo.tags)
-        ? trimmedVideo.tags.sort((a: string, b: string) => a.localeCompare(b))
-        : trimmedVideo.tags
-            .split(',')
-            .map(tag => tag.trim())
-            .filter(Boolean)
-            .sort((a: string, b: string) => a.localeCompare(b));
+      const tagsArray = Array.isArray(trimmedVideo.tags)
+        ? trimmedVideo.tags
+        : typeof trimmedVideo.tags === 'string'
+          ? trimmedVideo.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+          : [];
+
+      const sortedTags = tagsArray.sort((a: string, b: string) => a.localeCompare(b));
 
       const { error } = await supabase
         .from('videos')
