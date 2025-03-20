@@ -181,7 +181,7 @@ export default function AdminPage() {
       // Sort tags alphabetically for each video and collect unique tags
       const allTags = new Set<string>();
       const sortedData = data?.map(video => {
-        video.tags?.forEach(tag => allTags.add(tag));
+        video.tags?.forEach((tag: string) => allTags.add(tag));
         return {
           ...video,
           tags: video.tags?.sort((a, b) => a.localeCompare(b)) || []
