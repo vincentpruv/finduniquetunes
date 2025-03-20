@@ -15,12 +15,124 @@ interface Video {
   tags: string[];
 }
 
+interface TagInputProps {
+  value: string | string[];
+  onChange: (value: string) => void;
+  onTagsChange: (tags: string[]) => void;
+  existingTags: string[];
+  placeholder?: string;
+}
+
+function TagInput({ value, onChange, onTagsChange, existingTags, placeholder }: TagInputProps) {
+  const [tags, setTags] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState('');
+
+  useEffect(() => {
+    // Initialize tags from value
+    if (Array.isArray(value)) {
+      setTags(value);
+    } else if (typeof value === 'string') {
+      setTags(value.split(',').map(tag => tag.trim()).filter(Boolean));
+    }
+    setInputValue('');
+  }, [value]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
+      // Remove the last tag when backspace is pressed on empty input
+      const newTags = tags.slice(0, -1);
+      setTags(newTags);
+      onTagsChange(newTags);
+      onChange(newTags.join(', '));
+    } else if (e.key === ',' || e.key === 'Enter') {
+      e.preventDefault();
+      const newTag = inputValue.trim();
+      if (newTag && !tags.includes(newTag)) {
+        const newTags = [...tags, newTag].sort((a, b) => a.localeCompare(b));
+        setTags(newTags);
+        onTagsChange(newTags);
+        onChange(newTags.join(', '));
+        setInputValue('');
+      }
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (!value.includes(',')) {
+      setInputValue(value);
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    const newTags = tags.filter(tag => tag !== tagToRemove);
+    setTags(newTags);
+    onTagsChange(newTags);
+    onChange(newTags.join(', '));
+  };
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap gap-2 rounded-md border bg-background p-2">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-sm animate-in fade-in-0 zoom-in-95"
+          >
+            {tag}
+            <button
+              onClick={() => removeTag(tag)}
+              className="ml-2 rounded-full p-0.5 hover:bg-accent"
+            >
+              <X className="h-3 w-3" />
+              <span className="sr-only">Remove {tag}</span>
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+          placeholder={tags.length === 0 ? placeholder : "Add more tags..."}
+        />
+      </div>
+      {inputValue && (
+        <div className="absolute left-0 right-0 mt-1 rounded-md border bg-background p-2 shadow-lg">
+          {existingTags
+            .filter(tag => 
+              tag.toLowerCase().includes(inputValue.toLowerCase()) && 
+              !tags.includes(tag)
+            )
+            .map(tag => (
+              <button
+                key={tag}
+                className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                onClick={() => {
+                  const newTags = [...tags, tag].sort((a, b) => a.localeCompare(b));
+                  setTags(newTags);
+                  onTagsChange(newTags);
+                  onChange(newTags.join(', '));
+                  setInputValue('');
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [deletingVideo, setDeletingVideo] = useState<Video | null>(null);
   const [newVideo, setNewVideo] = useState({
     title: '',
     interpreter: '',
@@ -28,24 +140,30 @@ export default function AdminPage() {
     youtube_link: '',
     tags: '',
   });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [existingTags, setExistingTags] = useState<string[]>([]);
 
   useEffect(() => {
-    checkSession();
-    fetchVideos();
+    checkAuth();
   }, []);
 
-  async function checkSession() {
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchVideos();
+    }
+  }, [isAuthenticated]);
+
+  async function checkAuth() {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        await handleLogout();
+        router.replace('/admin/login');
         return;
       }
+      setIsAuthenticated(true);
     } catch (error) {
-      console.error('Session check error:', error);
-      await handleLogout();
+      console.error('Auth check error:', error);
+      router.replace('/admin/login');
     }
   }
 
@@ -60,7 +178,18 @@ export default function AdminPage() {
         throw error;
       }
 
-      setVideos(data || []);
+      // Sort tags alphabetically for each video and collect unique tags
+      const allTags = new Set<string>();
+      const sortedData = data?.map(video => {
+        video.tags?.forEach(tag => allTags.add(tag));
+        return {
+          ...video,
+          tags: video.tags?.sort((a, b) => a.localeCompare(b)) || []
+        };
+      }) || [];
+
+      setExistingTags(Array.from(allTags).sort((a, b) => a.localeCompare(b)));
+      setVideos(sortedData);
     } catch (error: any) {
       console.error('Error fetching videos:', error);
       toast.error(error.message || 'Failed to load videos');
@@ -75,12 +204,9 @@ export default function AdminPage() {
       if (error) throw error;
 
       router.push('/admin/login');
-      router.refresh();
     } catch (error: any) {
       console.error('Logout error:', error);
-      // Force redirect to login even if there's an error
-      router.push('/admin/login');
-      router.refresh();
+      toast.error(error.message || 'Failed to log out');
     }
   }
 
@@ -88,16 +214,31 @@ export default function AdminPage() {
     e.preventDefault();
     
     try {
-      if (!newVideo.title || !newVideo.author || !newVideo.youtube_link) {
+      const trimmedVideo = {
+        title: newVideo.title.trim(),
+        interpreter: newVideo.interpreter.trim(),
+        author: newVideo.author.trim(),
+        youtube_link: newVideo.youtube_link.trim(),
+        tags: newVideo.tags
+      };
+
+      if (!trimmedVideo.title || !trimmedVideo.author || !trimmedVideo.youtube_link) {
         throw new Error('Please fill in all required fields');
       }
 
-      const { error } = await supabase.from('videos').insert([
-        {
-          ...newVideo,
-          tags: newVideo.tags ? newVideo.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
-        },
-      ]);
+      // Sort tags alphabetically before saving
+      const sortedTags = trimmedVideo.tags
+        ? trimmedVideo.tags
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b))
+        : [];
+
+      const { error } = await supabase.from('videos').insert([{
+        ...trimmedVideo,
+        tags: sortedTags,
+      }]);
 
       if (error) {
         throw error;
@@ -123,19 +264,34 @@ export default function AdminPage() {
     if (!editingVideo) return;
 
     try {
-      if (!editingVideo.title || !editingVideo.author || !editingVideo.youtube_link) {
+      const trimmedVideo = {
+        ...editingVideo,
+        title: editingVideo.title.trim(),
+        interpreter: editingVideo.interpreter.trim(),
+        author: editingVideo.author.trim(),
+        youtube_link: editingVideo.youtube_link.trim(),
+      };
+
+      if (!trimmedVideo.title || !trimmedVideo.author || !trimmedVideo.youtube_link) {
         throw new Error('Please fill in all required fields');
       }
+
+      // Sort tags alphabetically before updating
+      const sortedTags = Array.isArray(trimmedVideo.tags)
+        ? trimmedVideo.tags.sort((a, b) => a.localeCompare(b))
+        : trimmedVideo.tags
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
 
       const { error } = await supabase
         .from('videos')
         .update({
-          ...editingVideo,
-          tags: typeof editingVideo.tags === 'string'
-            ? editingVideo.tags.split(',').map(tag => tag.trim()).filter(Boolean)
-            : editingVideo.tags,
+          ...trimmedVideo,
+          tags: sortedTags,
         })
-        .eq('id', editingVideo.id);
+        .eq('id', trimmedVideo.id);
 
       if (error) {
         throw error;
@@ -150,23 +306,34 @@ export default function AdminPage() {
     }
   }
 
-  async function handleDeleteVideo(id: string) {
+  async function handleDeleteVideo(video: Video) {
     try {
       const { error } = await supabase
         .from('videos')
         .delete()
-        .eq('id', id);
+        .eq('id', video.id);
 
       if (error) {
         throw error;
       }
 
       toast.success('Video deleted successfully');
+      setDeletingVideo(null);
       fetchVideos();
     } catch (error: any) {
       console.error('Error deleting video:', error);
       toast.error(error.message || 'Failed to delete video');
     }
+  }
+
+  if (!isAuthenticated || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -227,12 +394,12 @@ export default function AdminPage() {
               required
             />
           </div>
-          <input
-            type="text"
-            placeholder="Tags (comma-separated)"
+          <TagInput
             value={newVideo.tags}
-            onChange={(e) => setNewVideo({ ...newVideo, tags: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2"
+            onChange={(value) => setNewVideo({ ...newVideo, tags: value })}
+            onTagsChange={() => {}}
+            existingTags={existingTags}
+            placeholder="Add tags (press Enter or comma to add)"
           />
           <button
             type="submit"
@@ -245,65 +412,48 @@ export default function AdminPage() {
 
       <div className="rounded-lg bg-card p-6 shadow-md">
         <h2 className="mb-4 text-xl">Video List</h2>
-        {loading ? (
-          <p>Loading videos...</p>
-        ) : (
-          <div className="space-y-4">
-            {videos.map((video) => (
-              <div
-                key={video.id}
-                className="rounded-lg border bg-card p-4 shadow-sm"
-              >
-                {editingVideo?.id === video.id ? (
-                  <form onSubmit={handleUpdateVideo} className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="flex items-center space-x-2">
-                        <Disc2 className="h-4 w-4 text-muted-foreground" />
-                        <input
-                          type="text"
-                          placeholder="Title"
-                          value={editingVideo.title}
-                          onChange={(e) =>
-                            setEditingVideo({ ...editingVideo, title: e.target.value })
-                          }
-                          className="w-full rounded-md border bg-background px-3 py-2"
-                          required
-                        />
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Mic2 className="h-4 w-4 text-muted-foreground" />
-                        <input
-                          type="text"
-                          placeholder="Interpreter (optional)"
-                          value={editingVideo.interpreter}
-                          onChange={(e) =>
-                            setEditingVideo({ ...editingVideo, interpreter: e.target.value })
-                          }
-                          className="w-full rounded-md border bg-background px-3 py-2"
-                        />
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <PlayCircle className="h-4 w-4 text-muted-foreground" />
-                        <input
-                          type="text"
-                          placeholder="Author"
-                          value={editingVideo.author}
-                          onChange={(e) =>
-                            setEditingVideo({ ...editingVideo, author: e.target.value })
-                          }
-                          className="w-full rounded-md border bg-background px-3 py-2"
-                          required
-                        />
-                      </div>
+        <div className="space-y-4">
+          {videos.map((video) => (
+            <div
+              key={video.id}
+              className="rounded-lg border bg-card p-4 shadow-sm"
+            >
+              {editingVideo?.id === video.id ? (
+                <form onSubmit={handleUpdateVideo} className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="flex items-center space-x-2">
+                      <Disc2 className="h-4 w-4 text-muted-foreground" />
                       <input
                         type="text"
-                        placeholder="YouTube Link"
-                        value={editingVideo.youtube_link}
+                        placeholder="Title"
+                        value={editingVideo.title}
                         onChange={(e) =>
-                          setEditingVideo({
-                            ...editingVideo,
-                            youtube_link: e.target.value,
-                          })
+                          setEditingVideo({ ...editingVideo, title: e.target.value })
+                        }
+                        className="w-full rounded-md border bg-background px-3 py-2"
+                        required
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Mic2 className="h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Interpreter (optional)"
+                        value={editingVideo.interpreter}
+                        onChange={(e) =>
+                          setEditingVideo({ ...editingVideo, interpreter: e.target.value })
+                        }
+                        className="w-full rounded-md border bg-background px-3 py-2"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Author"
+                        value={editingVideo.author}
+                        onChange={(e) =>
+                          setEditingVideo({ ...editingVideo, author: e.target.value })
                         }
                         className="w-full rounded-md border bg-background px-3 py-2"
                         required
@@ -311,83 +461,116 @@ export default function AdminPage() {
                     </div>
                     <input
                       type="text"
-                      placeholder="Tags (comma-separated)"
-                      value={
-                        Array.isArray(editingVideo.tags)
-                          ? editingVideo.tags.join(', ')
-                          : editingVideo.tags
-                      }
+                      placeholder="YouTube Link"
+                      value={editingVideo.youtube_link}
                       onChange={(e) =>
-                        setEditingVideo({ ...editingVideo, tags: e.target.value })
+                        setEditingVideo({
+                          ...editingVideo,
+                          youtube_link: e.target.value,
+                        })
                       }
                       className="w-full rounded-md border bg-background px-3 py-2"
+                      required
                     />
+                  </div>
+                  <TagInput
+                    value={editingVideo.tags}
+                    onChange={(value) => setEditingVideo({ ...editingVideo, tags: value })}
+                    onTagsChange={() => {}}
+                    existingTags={existingTags}
+                    placeholder="Add tags (press Enter or comma to add)"
+                  />
+                  <div className="flex space-x-2">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center space-x-2 rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>Save</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingVideo(null)}
+                      className="inline-flex items-center space-x-2 rounded-md bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                      <span>Cancel</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div>
+                  <div className="mb-2 flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold">{video.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {video.interpreter && `Interpreter: ${video.interpreter}`}
+                        {video.interpreter && video.author && ' | '}
+                        {video.author && `Author: ${video.author}`}
+                      </p>
+                    </div>
                     <div className="flex space-x-2">
                       <button
-                        type="submit"
-                        className="inline-flex items-center space-x-2 rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+                        onClick={() => setEditingVideo(video)}
+                        className="rounded-md p-2 hover:bg-accent"
                       >
-                        <Save className="h-4 w-4" />
-                        <span>Save</span>
+                        <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        type="button"
-                        onClick={() => setEditingVideo(null)}
-                        className="inline-flex items-center space-x-2 rounded-md bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+                        onClick={() => setDeletingVideo(video)}
+                        className="rounded-md p-2 text-red-500 hover:bg-accent"
                       >
-                        <X className="h-4 w-4" />
-                        <span>Cancel</span>
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </form>
-                ) : (
-                  <div>
-                    <div className="mb-2 flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold">{video.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {video.interpreter && `Interpreter: ${video.interpreter}`}
-                          {video.interpreter && video.author && ' | '}
-                          {video.author && `Author: ${video.author}`}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => setEditingVideo(video)}
-                          className="rounded-md p-2 hover:bg-accent"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteVideo(video.id)}
-                          className="rounded-md p-2 text-red-500 hover:bg-accent"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {video.youtube_link}
-                    </p>
-                    {video.tags && video.tags.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {video.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="rounded-full bg-secondary px-2 py-1 text-xs"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  <p className="text-sm text-muted-foreground">
+                    {video.youtube_link}
+                  </p>
+                  {video.tags && video.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {video.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="rounded-full bg-secondary px-2 py-1 text-xs"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {deletingVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
+            <h3 className="text-lg font-medium">Delete Video</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to delete &quot;{deletingVideo.title}&quot;? This action cannot be undone.
+            </p>
+            <div className="mt-4 flex justify-end space-x-2">
+              <button
+                onClick={() => setDeletingVideo(null)}
+                className="rounded-md bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteVideo(deletingVideo)}
+                className="rounded-md bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
