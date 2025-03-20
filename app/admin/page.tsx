@@ -138,7 +138,7 @@ export default function AdminPage() {
     interpreter: '',
     author: '',
     youtube_link: '',
-    tags: '',
+    tags: [] as string[],
   });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [existingTags, setExistingTags] = useState<string[]>([]);
@@ -228,11 +228,9 @@ export default function AdminPage() {
         throw new Error('Please fill in all required fields');
       }
 
-      const tagsArray = typeof trimmedVideo.tags === 'string' 
-        ? trimmedVideo.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
+      const sortedTags = Array.isArray(trimmedVideo.tags) 
+        ? trimmedVideo.tags.sort((a: string, b: string) => a.localeCompare(b))
         : [];
-
-      const sortedTags = tagsArray.sort((a: string, b: string) => a.localeCompare(b));
 
       const { error } = await supabase.from('videos').insert([{
         ...trimmedVideo,
@@ -249,7 +247,7 @@ export default function AdminPage() {
         interpreter: '',
         author: '',
         youtube_link: '',
-        tags: '',
+        tags: [],
       });
       fetchVideos();
     } catch (error: any) {
@@ -275,13 +273,9 @@ export default function AdminPage() {
         throw new Error('Please fill in all required fields');
       }
 
-      const tagsArray = Array.isArray(trimmedVideo.tags)
-        ? trimmedVideo.tags
-        : typeof trimmedVideo.tags === 'string'
-          ? trimmedVideo.tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
-          : [];
-
-      const sortedTags = tagsArray.sort((a: string, b: string) => a.localeCompare(b));
+      const sortedTags = Array.isArray(trimmedVideo.tags)
+        ? trimmedVideo.tags.sort((a: string, b: string) => a.localeCompare(b))
+        : [];
 
       const { error } = await supabase
         .from('videos')
@@ -394,8 +388,8 @@ export default function AdminPage() {
           </div>
           <TagInput
             value={newVideo.tags}
-            onChange={(value) => setNewVideo({ ...newVideo, tags: value })}
-            onTagsChange={() => {}}
+            onChange={(value) => setNewVideo({ ...newVideo, tags: value.split(',').map(t => t.trim()).filter(Boolean) })}
+            onTagsChange={(tags) => setNewVideo({ ...newVideo, tags })}
             existingTags={existingTags}
             placeholder="Add tags (press Enter or comma to add)"
           />
@@ -473,8 +467,8 @@ export default function AdminPage() {
                   </div>
                   <TagInput
                     value={editingVideo.tags}
-                    onChange={(value) => setEditingVideo({ ...editingVideo, tags: value })}
-                    onTagsChange={() => {}}
+                    onChange={(value) => setEditingVideo({ ...editingVideo, tags: value.split(',').map(t => t.trim()).filter(Boolean) })}
+                    onTagsChange={(tags) => setEditingVideo({ ...editingVideo, tags })}
                     existingTags={existingTags}
                     placeholder="Add tags (press Enter or comma to add)"
                   />
