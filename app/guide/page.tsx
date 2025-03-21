@@ -90,7 +90,7 @@ export default function GuidePage() {
             <li>• Use the Discover mode when you're open to new musical experiences</li>
             <li>• Check the tags on videos you like to find similar content</li>
             <li>• Try searching for different interpretations of classical pieces</li>
-            <li>• Remember that all music is free to use in your projects</li>
+            <li>• Remember to check copyrights, and please check Legal page for more details.</li>
           </ul>
         </section>
       </div>
